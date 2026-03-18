@@ -1,0 +1,80 @@
+services:
+  python-app:
+    build:
+      context: ./python-app
+    container_name: docker-mastery-python
+    ports:
+      - "5001:5000"
+    environment:
+      APP_NAME: "python-app"
+      LOG_LEVEL: "INFO"
+      PORT: "5000"
+      LOG_DIR: "/var/log/python-app"
+    volumes:
+      - python-logs:/var/log/python-app
+    networks:
+      - docker-mastery-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2).read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  node-app:
+    build:
+      context: ./node-app
+    container_name: docker-mastery-node
+    ports:
+      - "3001:3000"
+    environment:
+      APP_NAME: "node-app"
+      LOG_LEVEL: "info"
+      PORT: "3000"
+      LOG_DIR: "/var/log/node-app"
+    networks:
+      - docker-mastery-net
+    depends_on:
+      python-app:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const http=require('http');const req=http.get({host:'127.0.0.1',port:3000,path:'/health',timeout:2000},res=>process.exit(res.statusCode===200?0:1));req.on('error',()=>process.exit(1));req.on('timeout',()=>{req.destroy();process.exit(1);});"
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  java-app:
+    build:
+      context: ./java-app
+    container_name: docker-mastery-java
+    ports:
+      - "8081:8080"
+    environment:
+      APP_NAME: "java-app"
+      PORT: "8080"
+    networks:
+      - docker-mastery-net
+    depends_on:
+      node-app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  python-logs:
+
+networks:
+  docker-mastery-net:
+    driver: bridge
+
